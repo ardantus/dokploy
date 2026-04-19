@@ -4,6 +4,24 @@ import Docker from "dockerode";
 
 export const IS_CLOUD = process.env.IS_CLOUD === "true";
 
+/**
+ * When true, enterprise gates (API + `hasValidLicense`) behave as if a valid
+ * license exists — intended for local / lab use only.
+ *
+ * - `DOKPLOY_ENTERPRISE_LOCAL_BYPASS=0` — force off (even in development; use to test real license flow).
+ * - `DOKPLOY_ENTERPRISE_LOCAL_BYPASS=1` — force on (even when `NODE_ENV=production`, e.g. local Docker).
+ * - unset + `NODE_ENV === "development"` — on (e.g. `pnpm dokploy:dev`).
+ * - unset + `NODE_ENV === "production"` — off.
+ *
+ * Do not set bypass on internet-facing production servers.
+ */
+export const BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL = (() => {
+	const v = process.env.DOKPLOY_ENTERPRISE_LOCAL_BYPASS;
+	if (v === "0") return false;
+	if (v === "1") return true;
+	return process.env.NODE_ENV === "development";
+})();
+
 export const DOKPLOY_DOCKER_API_VERSION =
 	process.env.DOKPLOY_DOCKER_API_VERSION;
 export const DOKPLOY_DOCKER_HOST = process.env.DOKPLOY_DOCKER_HOST;

@@ -1,3 +1,4 @@
+import { BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL } from "../../constants";
 import { getPublicIpWithFallback } from "@dokploy/server/wss/utils";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { scheduleJob } from "node-schedule";
@@ -11,6 +12,10 @@ export const LICENSE_KEY_URL =
 
 export const initEnterpriseBackupCronJobs = async () => {
 	scheduleJob("enterprise-check", "0 0 */3 * *", async () => {
+		if (BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL) {
+			return;
+		}
+
 		const users = await db.query.user.findMany({
 			where: and(
 				isNotNull(userSchema.licenseKey),

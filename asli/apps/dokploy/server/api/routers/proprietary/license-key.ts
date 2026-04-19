@@ -1,4 +1,3 @@
-import { BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL } from "@dokploy/server/constants";
 import { db } from "@dokploy/server/db";
 import { user } from "@dokploy/server/db/schema";
 import { hasValidLicense, validateLicenseKey } from "@dokploy/server/index";
@@ -38,10 +37,7 @@ export const licenseKeyRouter = createTRPCRouter({
 					});
 				}
 
-				if (
-					!BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL &&
-					!currentUser.enableEnterpriseFeatures
-				) {
+				if (!currentUser.enableEnterpriseFeatures) {
 					throw new TRPCError({
 						code: "BAD_REQUEST",
 						message:
@@ -49,18 +45,12 @@ export const licenseKeyRouter = createTRPCRouter({
 					});
 				}
 
-				if (!BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL) {
-					await activateLicenseKey(input.licenseKey);
-				}
-
+				await activateLicenseKey(input.licenseKey);
 				await db
 					.update(user)
 					.set({
-						licenseKey: BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL
-							? "local-bypass"
-							: input.licenseKey,
+						licenseKey: input.licenseKey,
 						isValidEnterpriseLicense: true,
-						enableEnterpriseFeatures: true,
 					})
 					.where(eq(user.id, currentUserId));
 				return { success: true };
@@ -95,36 +85,21 @@ export const licenseKeyRouter = createTRPCRouter({
 				});
 			}
 
-			if (!BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL && !currentUser.licenseKey) {
+			if (!currentUser.licenseKey) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "No license key found",
 				});
 			}
 
-			if (
-				!BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL &&
-				!currentUser.enableEnterpriseFeatures
-			) {
+			if (!currentUser.enableEnterpriseFeatures) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message:
 						"Please activate enterprise features to validate license key",
 				});
 			}
-
-			if (BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL) {
-				await db
-					.update(user)
-					.set({
-						isValidEnterpriseLicense: true,
-						enableEnterpriseFeatures: true,
-					})
-					.where(eq(user.id, currentUserId));
-				return true;
-			}
-
-			const valid = await validateLicenseKey(currentUser.licenseKey!);
+			const valid = await validateLicenseKey(currentUser.licenseKey);
 			if (valid) {
 				await db
 					.update(user)
@@ -154,7 +129,7 @@ export const licenseKeyRouter = createTRPCRouter({
 					message: "User not found",
 				});
 			}
-			if (!BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL && !currentUser.licenseKey) {
+			if (!currentUser.licenseKey) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "No license key found",
@@ -168,15 +143,10 @@ export const licenseKeyRouter = createTRPCRouter({
 				});
 			}
 
-			if (
-				!BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL &&
-				currentUser.licenseKey
-			) {
-				try {
-					await deactivateLicenseKey(currentUser.licenseKey);
-				} catch (err) {
-					console.error("Failed to deactivate license key remotely:", err);
-				}
+			try {
+				await deactivateLicenseKey(currentUser.licenseKey);
+			} catch (err) {
+				console.error("Failed to deactivate license key remotely:", err);
 			}
 
 			await db

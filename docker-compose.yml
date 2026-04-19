@@ -1,0 +1,116 @@
+# ----------------------------------------------------------------------------
+# Docker Compose untuk membangun (build) dan menjalankan Dokploy secara lokal.
+#
+# Catatan:
+#   - File ini TIDAK menggantikan instalasi resmi via swarm
+#     (curl -sSL https://dokploy.com/install.sh | bash).
+#   - Berguna untuk pengembangan / self-host sederhana di satu host.
+#   - Dokploy memerlukan akses ke Docker daemon host (mount /var/run/docker.sock)
+#     karena ia mengorkestrasi container/Swarm pada host yang sama.
+#
+# Cara pakai cepat:
+#   1) Salin .env.example -> .env, sesuaikan nilainya (atau biarkan default).
+#   2) docker compose up -d --build
+#   3) Buka http://localhost:3000
+# ----------------------------------------------------------------------------
+
+name: dokploy
+
+services:
+  dokploy-postgres:
+    image: postgres:16-alpine
+    container_name: dokploy-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dokploy}
+      POSTGRES_DB: ${POSTGRES_DB:-dokploy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-amukds4wi9001583845717ad2}
+    volumes:
+      - dokploy-postgres-database:/var/lib/postgresql/data
+    networks:
+      - dokploy-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-dokploy} -d ${POSTGRES_DB:-dokploy}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  dokploy-redis:
+    image: redis:7-alpine
+    container_name: dokploy-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data-volume:/data
+    networks:
+      - dokploy-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  dokploy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dokploy/dokploy:local
+    container_name: dokploy
+    restart: unless-stopped
+    depends_on:
+      dokploy-postgres:
+        condition: service_healthy
+      dokploy-redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # Enterprise UI/API tanpa license Dokploy (lokal / lab). Set 0 untuk menonaktifkan.
+      DOKPLOY_ENTERPRISE_LOCAL_BYPASS: ${DOKPLOY_ENTERPRISE_LOCAL_BYPASS:-1}
+      PORT: 3000
+      ADVERTISE_ADDR: ${ADVERTISE_ADDR:-127.0.0.1}
+      # Database
+      POSTGRES_USER: ${POSTGRES_USER:-dokploy}
+      POSTGRES_DB: ${POSTGRES_DB:-dokploy}
+      POSTGRES_HOST: dokploy-postgres
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgres://${POSTGRES_USER:-dokploy}:${POSTGRES_PASSWORD:-amukds4wi9001583845717ad2}@dokploy-postgres:5432/${POSTGRES_DB:-dokploy}
+      # Redis
+      REDIS_URL: redis://dokploy-redis:6379
+      # Auth
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-please-change-me-to-a-long-random-string}
+      # Traefik (port di host yang akan dipakai container yang dideploy Dokploy)
+      TRAEFIK_PORT: ${TRAEFIK_PORT:-80}
+      TRAEFIK_SSL_PORT: ${TRAEFIK_SSL_PORT:-443}
+      TRAEFIK_HTTP3_PORT: ${TRAEFIK_HTTP3_PORT:-443}
+      TRAEFIK_VERSION: ${TRAEFIK_VERSION:-3.6.7}
+    ports:
+      - "3000:3000"
+    volumes:
+      # Akses ke Docker daemon host (wajib agar Dokploy bisa orkestrasi).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Data persistens Dokploy (project, build cache, dll.)
+      - dokploy-data:/etc/dokploy
+    networks:
+      - dokploy-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fs http://localhost:3000/api/trpc/settings.health || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  dokploy-postgres-database:
+  redis-data-volume:
+  dokploy-data:
+
+networks:
+  dokploy-network:
+    driver: bridge

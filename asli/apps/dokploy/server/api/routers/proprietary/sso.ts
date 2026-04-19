@@ -1,8 +1,5 @@
 import { normalizeTrustedOrigin } from "@dokploy/server";
-import {
-	BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL,
-	IS_CLOUD,
-} from "@dokploy/server/constants";
+import { IS_CLOUD } from "@dokploy/server/constants";
 import { db } from "@dokploy/server/db";
 import { member, ssoProvider, user } from "@dokploy/server/db/schema";
 import { ssoProviderBodySchema } from "@dokploy/server/db/schema/sso";
@@ -23,9 +20,6 @@ import {
 export const ssoRouter = createTRPCRouter({
 	showSignInWithSSO: publicProcedure.query(async () => {
 		if (IS_CLOUD) {
-			return true;
-		}
-		if (BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL) {
 			return true;
 		}
 		const owner = await db.query.member.findFirst({

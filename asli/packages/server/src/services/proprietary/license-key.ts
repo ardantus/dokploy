@@ -1,14 +1,9 @@
-import { BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL } from "../../constants";
 import { db } from "@dokploy/server/db";
 import { user } from "@dokploy/server/db/schema";
 import { eq } from "drizzle-orm";
 import { getOrganizationOwnerId } from "./sso";
 
 export const hasValidLicense = async (organizationId: string) => {
-	if (BYPASS_ENTERPRISE_LICENSE_FOR_LOCAL) {
-		return true;
-	}
-
 	const ownerId = await getOrganizationOwnerId(organizationId);
 
 	if (!ownerId) {
